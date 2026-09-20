@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
@@ -341,18 +341,6 @@
     <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
 
-    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
-
-    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
-
     <script>
         const SPREADSHEET_ID = '19VlQH0GRVcxtFx44huJGdzZQJfBKyc96';
         const URL_GOOGLE_SHEETS = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv&gid=622411354`;
@@ -429,14 +417,16 @@
         function parseIndonesianDate(rawStr) {
             if (!rawStr || rawStr.trim() === '') return new Date('2099-01-01').toISOString();
             try {
-                const dateMatch = rawStr.match(/([a-zA-Z]+),?\s+(\d{1,2})\s+([a-zA-Z]+)/);
+                // Ambil hari, tanggal, bulan, dan (opsional) tahun
+                const dateMatch = rawStr.match(/([a-zA-Z]+),?\s+(\d{1,2})\s+([a-zA-Z]+)(?:\s+(\d{4}))?/);
                 if (!dateMatch) return new Date('2099-01-01').toISOString();
                 
                 const tanggal = dateMatch[2];
                 let bulanStr = dateMatch[3].toLowerCase();
                 const bulanMap = { 'januari': 0, 'jan': 0, 'februari': 1, 'feb': 1, 'maret': 2, 'mar': 2, 'april': 3, 'apr': 3, 'mei': 4, 'juni': 5, 'jun': 5, 'juli': 6, 'jul': 6, 'agustus': 7, 'agu': 7, 'september': 8, 'sep': 8, 'oktober': 9, 'okt': 9, 'november': 10, 'nov': 10, 'desember': 11, 'des': 11 };
                 const bulanIdx = bulanMap[bulanStr] !== undefined ? bulanMap[bulanStr] : 0;
-                const tahun = new Date().getFullYear();
+                
+                const tahun = dateMatch[4] ? parseInt(dateMatch[4], 10) : new Date().getFullYear();
                 
                 const timeMatch = rawStr.match(/(\d{2})[:.](\d{2})/);
                 let jam = 0, menit = 0;
@@ -461,16 +451,23 @@
             }
             for (let i = startIdx; i < rows.length; i++) {
                 const cols = rows[i];
-                if (!cols || cols.length < 4) continue;
+                if (!cols || cols.length < 5) continue;
+                const niu = (cols[1] || '').trim();
+                const nim = (cols[2] || '').trim();
                 const nama = (cols[3] || '').trim();
                 const bidang = (cols[4] || '').trim();
                 const pembimbing = (cols[5] || '').trim();
                 const ketua = (cols[6] || '').trim();
                 const anggota = (cols[7] || '').trim();
-                const rawJadwal = (cols[8] || '').trim();
+                const tanggal = (cols[8] || '').trim();
+                const waktu = (cols[9] || '').trim();
+                
                 if (!nama) continue;
+                
+                const rawJadwal = (tanggal + ' ' + waktu).trim();
                 const parsedDateISO = parseIndonesianDate(rawJadwal);
-                newItems.push({ id: 'pendadaran-' + Date.now() + '-' + i, nama, bidang, pembimbing, ketua, anggota, rawJadwal, parsedDate: parsedDateISO });
+                
+                newItems.push({ id: 'pendadaran-' + Date.now() + '-' + i, niu, nim, nama, bidang, pembimbing, ketua, anggota, rawJadwal, parsedDate: parsedDateISO });
             }
             if (newItems.length > 0) {
                 schedules = newItems;
@@ -528,7 +525,9 @@
 
         function formatJadwalRaw(rawStr) {
             if (!rawStr) return '-';
-            return rawStr.replace(/\n/g, '<br>');
+            // Pengecekan agar tanggal dan waktu dipisah baris bila digabung dengan spasi
+            // Contoh 'Jumat, 23 Agustus 09.00 WIB' menjadi 'Jumat, 23 Agustus<br>09.00 WIB'
+            return rawStr.replace(/(\d{4}|\w+)\s+(\d{2}[:.]\d{2})/, "$1<br>$2").replace(/\n/g, '<br>');
         }
 
         function escapeHtml(unsafe) {
@@ -565,12 +564,18 @@
                 if(status === 'Dijadwalkan') {
                     keteranganHtml = `<span class="badge bg-success rounded-pill px-3 py-2 shadow-sm"><span class="pulse-indicator"></span> `+status+`</span>`;
                 }
+                
+                let identitas = '';
+                if (item.nim) {
+                    identitas = `<div class="small text-muted mb-1">${escapeHtml(item.nim)}</div>`;
+                }
 
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td></td>
                     <td>
                         <div class="fw-bold text-dark mb-1">${escapeHtml(item.nama)}</div>
+                        ${identitas}
                         <div class="small text-muted">${escapeHtml(item.bidang)}</div>
                     </td>
                     <td>
@@ -579,7 +584,7 @@
                         <div class="small"><span class="badge bg-light text-dark border me-1">Anggota</span> <span class="text-secondary">${escapeHtml(item.anggota)}</span></div>
                     </td>
                     <td data-order="${item.parsedDate}">
-                        <div class="small text-dark fw-medium">${formatJadwalRaw(escapeHtml(item.rawJadwal))}</div>
+                        <div class="small text-dark fw-medium text-nowrap">${formatJadwalRaw(escapeHtml(item.rawJadwal))}</div>
                     </td>
                     <td class="text-center">
                         ${keteranganHtml}
@@ -607,4 +612,3 @@
     </script>
 </body>
 </html>
-
